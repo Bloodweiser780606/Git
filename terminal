@@ -1,0 +1,28 @@
+$lockedOutUsers = Search-ADAccount -LockedOut | Select-Object -ExpandProperty SamAccountName
+$accountLockoutTimes = @() # Create an empty array to store the results
+
+foreach ($user in $lockedOutUsers) {
+    $userDetails = Get-ADUser -Identity $user -Properties AccountLockoutTime
+    if ($userDetails.AccountLockoutTime -gt (Get-Date).AddHours(-72)) {
+        $accountLockoutTimes += [PSCustomObject]@{
+            SamAccountName     = $userDetails.SamAccountName
+            AccountLockoutTime = $userDetails.AccountLockoutTime
+        }
+    }
+}
+
+if ($accountLockoutTimes.Count -gt 0) {
+    Write-Output "The following accounts will be unlocked:"
+    $accountLockoutTimes | Format-Table -AutoSize
+    $confirm = Read-Host "Do you want to proceed with unlocking these accounts? (Yes/No)"
+    if ($confirm -eq "Yes") {
+        foreach ($user in $accountLockoutTimes) {
+            Unlock-ADAccount -Identity $user.SamAccountName
+            Write-Output "Unlocked account for user: $($user.SamAccountName)"
+        }
+    } else {
+        Write-Output "No accounts were unlocked."
+    }
+} else {
+    Write-Output "No accounts found that have been locked within the last 72 hours."
+}
